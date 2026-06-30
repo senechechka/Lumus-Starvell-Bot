@@ -1,6 +1,6 @@
-"""Polling-мониторинг событий Starvell."""
 from __future__ import annotations
 
+import concurrent.futures
 import logging
 import threading
 import time
@@ -32,15 +32,12 @@ class Runner:
         self.running = False
         self._greeted_chats: set[str] = set()
         self._thread: threading.Thread | None = None
-        self._seen_new_order: set[str] = set()
-        self._seen_payment: set[str] = set()
-        self._seen_confirm: set[str] = set()
-        self._seen_messages: dict[str, set[str]]
         self._chat_baselines: set[str] = set()
         self._last_notified: dict[str, str] = {}
         self._seen_orders: set[str] = set()
         self._last_order_status: dict[str, str] = {}
         self._seen_reviews: set[str] = set()
+        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="StarvellPoll")
         self._handlers: dict[str, list[Callable]] = {
             "new_message": [],
             "new_order": [],
@@ -53,6 +50,20 @@ class Runner:
         if event_type in self._handlers:
             self._handlers[event_type].append(handler)
 
+    def _dispatch(self, event_type: str, event) -> None:
+        for handler in self._handlers.get(event_type, []):
+            threading.Thread(
+                target=self._safe_call,
+                args=(handler, event, event_type),
+                daemon=True,
+            ).start()
+
+    def _safe_call(self, handler: Callable, event, event_type: str) -> None:
+        try:
+            handler(event)
+        except Exception as e:
+            logger.error(f"$ERRORОшибка обработчика {event_type}: {e}")
+
     def start(self) -> None:
         if self.running:
             return
@@ -63,23 +74,45 @@ class Runner:
 
     def stop(self) -> None:
         self.running = False
+        self._executor.shutdown(wait=False, cancel_futures=True)
+
+    def _run_with_deadline(self, fn, *args, name: str = "", deadline: float = 25.0, **kwargs):
+        """Выполняет fn в пуле потоков с жёстким общим дедлайном.
+        Защищает от зависаний requests, которые не ловятся обычным timeout=
+        (timeout у requests относится к отдельной операции чтения, а не к запросу целиком)."""
+        future = self._executor.submit(fn, *args, **kwargs)
+        try:
+            return future.result(timeout=deadline)
+        except concurrent.futures.TimeoutError:
+            logger.error(f"$ERROR{name} завис дольше {deadline} сек — пропускаем итерацию")
+            return None
 
     def _loop(self) -> None:
         first = True
+        error_count = 0
+        iteration = 0
         while self.running:
+            iteration += 1
+            if iteration % 30 == 0:
+                logger.info(f"$DEBUG Runner alive, iteration={iteration}, threads={threading.active_count()}")
             try:
-                self._poll_messages(baseline=first)
-                self._poll_orders(baseline=first)
+                self._run_with_deadline(self._poll_messages, baseline=first, name="poll_messages")
+                self._run_with_deadline(self._poll_orders, baseline=first, name="poll_orders")
                 first = False
+                error_count = 0
             except Exception as e:
-                logger.error(f"$ERRORОшибка мониторинга: {e}")
+                error_count += 1
+                if error_count <= 3 or error_count % 10 == 0:
+                    logger.error(f"$ERRORОшибка мониторинга: {e}", exc_info=True)
+                time.sleep(min(self.poll_interval * error_count, 60))
+                continue
             time.sleep(self.poll_interval)
 
     def _poll_messages(self, baseline: bool = False) -> None:
         try:
             chats = fetch_chats(self.account)
         except Exception as e:
-            logger.error(f"$ERRORОшибка получения чатов: {type(e).__name__}: {e}", exc_info=True)
+            logger.error(f"$ERRORОшибка получения чатов: {type(e).__name__}: {e}")
             return
 
         if not chats:
@@ -143,11 +176,7 @@ class Runner:
                 is_new_chat=is_new_chat,
             )
 
-            for handler in self._handlers["new_message"]:
-                try:
-                    handler(event)
-                except Exception as e:
-                    logger.error(f"$ERRORОшибка обработчика new_message: {e}")
+            self._dispatch("new_message", event)
 
     def _poll_orders(self, baseline: bool = False) -> None:
         try:
@@ -189,28 +218,25 @@ class Runner:
 
             if is_new:
                 payment_event = PaymentEvent(order_id=order_id, username=username, amount=price, raw=order)
-                for handler in self._handlers["payment"]:
-                    try:
-                        handler(payment_event)
-                    except Exception as e:
-                        logger.error(f"$ERRORОшибка обработчика payment: {e}")
+                self._dispatch("payment", payment_event)
 
                 new_order_event = NewOrderEvent(
                     order_id=order_id, username=username, lot_title=lot, price=price, raw=order
                 )
-                for handler in self._handlers["new_order"]:
-                    try:
-                        handler(new_order_event)
-                    except Exception as e:
-                        logger.error(f"$ERRORОшибка обработчика new_order: {e}")
+                logger.info(f"$CLIENTНовый заказ #{order_id}: {lot}")
+                self._dispatch("new_order", new_order_event)
 
             if status in confirmed_statuses and prev_status not in confirmed_statuses:
-                event = OrderConfirmEvent(order_id=order_id, username=username, raw=order)
-                for handler in self._handlers["order_confirm"]:
-                    try:
-                        handler(event)
-                    except Exception as e:
-                        logger.error(f"$ERRORОшибка обработчика order_confirm: {e}")
+                chat_id = ""
+                try:
+                    details = self.account.fetch_order_details(order_id)
+                    chat_id = (details.get("chat") or {}).get("id", "")
+                except Exception as e:
+                    logger.debug(f"$ERRORНе удалось получить chat_id заказа #{order_id}: {e}")
+
+                confirm_event = OrderConfirmEvent(order_id=order_id, username=username, raw={**order, "chatId": chat_id})
+                logger.info(f"$CLIENTПодтверждение заказа #{order_id}")
+                self._dispatch("order_confirm", confirm_event)
 
             if order.get("sellerCompletedAt") and order_id not in self._seen_reviews:
                 try:
@@ -218,6 +244,7 @@ class Runner:
                     review = details.get("review")
                 except Exception as e:
                     review = None
+                    details = {}
                     logger.debug(f"$ERRORОшибка проверки отзыва #{order_id}: {e}")
 
                 if review:
@@ -231,8 +258,4 @@ class Runner:
                         raw={**order, "chatId": chat_id},
                     )
                     logger.info(f"$CLIENTОтзыв от {username} ({review_event.rating}★): {review_event.text}")
-                    for handler in self._handlers["review"]:
-                        try:
-                            handler(review_event)
-                        except Exception as e:
-                            logger.error(f"$ERRORОшибка обработчика review: {e}")
+                    self._dispatch("review", review_event)
