@@ -1,6 +1,3 @@
-"""
-Ядро Lumus Starvell Bot (оркестратор).
-"""
 from __future__ import annotations
 
 import logging
@@ -21,21 +18,18 @@ from Utils.config_loader import save_config
 logger = logging.getLogger("LSB")
 
 
-def _print_table(rows: list[tuple[str, str]], title: str = "") -> None:
+def _log_account_info(rows: list[tuple[str, str]]) -> None:
     col1_w = max(len(r[0]) for r in rows)
     col2_w = max(len(str(r[1])) for r in rows)
     width = col1_w + col2_w + 7
-    border = f"{Fore.LIGHTBLACK_EX}{'─' * width}{Style.RESET_ALL}"
-    if title:
-        pad = (width - len(title) - 2) // 2
-        print(f"{Fore.LIGHTBLACK_EX}┌{'─' * pad} {Fore.CYAN}{Style.BRIGHT}{title}{Style.RESET_ALL}{Fore.LIGHTBLACK_EX} {'─' * (width - pad - len(title) - 2)}┐{Style.RESET_ALL}")
-    else:
-        print(f"{Fore.LIGHTBLACK_EX}┌{'─' * (width - 0)}┐{Style.RESET_ALL}")
+
+    logger.info(f"$BLACK┌{'─' * width}┐{Style.RESET_ALL}")
     for key, val in rows:
-        key_str = f"{Fore.LIGHTBLACK_EX}{key:<{col1_w}}{Style.RESET_ALL}"
-        val_str = f"{Fore.WHITE}{Style.BRIGHT}{val}{Style.RESET_ALL}"
-        print(f"{Fore.LIGHTBLACK_EX}│{Style.RESET_ALL} {key_str} {Fore.LIGHTBLACK_EX}:{Style.RESET_ALL} {val_str:<{col2_w}} {Fore.LIGHTBLACK_EX}│{Style.RESET_ALL}")
-    print(f"{Fore.LIGHTBLACK_EX}└{'─' * (width - 0)}┘{Style.RESET_ALL}")
+        logger.info(
+            f"$BLACK│ $CYAN{key:<{col1_w}}{Style.RESET_ALL} $BLACK│{Style.RESET_ALL} "
+            f"$WHITE{val:<{col2_w}}{Style.RESET_ALL} $BLACK│{Style.RESET_ALL}"
+        )
+    logger.info(f"$BLACK└{'─' * width}┘{Style.RESET_ALL}")
 
 
 class LSB:
@@ -103,7 +97,7 @@ class LSB:
 
         lots, categories = self.account.count_lots()
 
-        _print_table([
+        _log_account_info([
             ("Аккаунт", self.account.username or "—"),
             ("ID", str(self.account.user_id or "—")),
             ("Баланс", f"{self.account.balance} ₽"),
@@ -111,7 +105,7 @@ class LSB:
             ("Лотов", str(lots)),
             ("Категорий (автоподнятие)", str(categories)),
             ("Версия", self.version),
-        ], title="LSB")
+        ])
 
     def _dispatch(self, event_type: str, event) -> None:
         handlers = {
