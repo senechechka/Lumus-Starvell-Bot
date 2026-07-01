@@ -75,18 +75,19 @@ def on_new_message(lsb, event: NewMessageEvent) -> None:
         logger.info(f"$SUCCESSАвтоответ отправлен в чат {event.chat_id}")
 
 def on_payment(lsb, event: PaymentEvent) -> None:
+    amount = float(event.amount) / 100
     _notify(
         lsb,
         "payment",
-        f"💰 <b>Оплата</b>\nЗаказ: #{event.order_id}\nПокупатель: {event.username}\nСумма: {event.amount} ₽",
+        f"💰 <b>Оплата</b>\nЗаказ: #{event.order_id}\nПокупатель: {event.username}\nСумма: {amount:.2f} ₽",
     )
 
-
 def on_new_order(lsb, event: NewOrderEvent) -> None:
+    price = float(event.price) / 100
     _notify(
         lsb,
         "payment",
-        f"🛒 <b>Новый заказ</b>\n#{event.order_id}\n{event.lot_title}\n{event.price} ₽ — {event.username}",
+        f"🛒 <b>Новый заказ</b>\n#{event.order_id}\n{event.lot_title}\n{price:.2f} ₽ — {event.username}",
     )
 
 
