@@ -167,7 +167,7 @@ class Runner:
                             text=text,
                             raw={**last_msg, "chatId": chat_id_order or chat_id},
                         )
-                        logger.info(f"$CLIENTОтзыв от {username} ({rating}★): {text[:100]}")
+                        logger.info(f"$CLIENTОтзыв от {username} ({rating}*'★'): {text[:100]}")
                         self._dispatch("review", event)
                 continue
 
@@ -282,5 +282,5 @@ class Runner:
                         text=str(review.get("content") or ""),
                         raw={**order, "chatId": chat_id},
                     )
-                    logger.info(f"$CLIENTОтзыв от {username} ({review_event.rating}★): {review_event.text}")
+                    logger.info(f"$CLIENTОтзыв от {username} ({review_event.rating}*'★'): {review_event.text}")
                     self._dispatch("review", review_event)
