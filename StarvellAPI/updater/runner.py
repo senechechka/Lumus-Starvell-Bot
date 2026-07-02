@@ -162,7 +162,6 @@ class Runner:
 
             preview = text[:120] + ("…" if len(text) > 120 else "")
             logger.info(f"$CLIENTВходящее от {username} (чат {chat_id}): {preview}")
-            logger.debug(f"$CLIENTraw lastMessage: {last_msg}")
 
             is_new_chat = chat_id not in self._chat_baselines and chat_id not in self._greeted_chats
             if is_new_chat:

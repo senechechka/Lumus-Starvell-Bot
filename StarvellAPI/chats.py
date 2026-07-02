@@ -45,6 +45,12 @@ def parse_chat_list(raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def extract_interlocutor(chat: dict[str, Any], my_user_id: int) -> tuple[str, int | None]:
+    last_msg = chat.get("lastMessage") or {}
+    buyer = last_msg.get("buyer") or {}
+    
+    if buyer and buyer.get("id") and int(buyer["id"]) != my_user_id:
+        return buyer.get("username") or "Покупатель", int(buyer["id"])
+
     participants = chat.get("participants") or []
     username = "Покупатель"
     interlocutor_id: int | None = None
@@ -83,4 +89,8 @@ def message_author_id(msg: dict[str, Any]) -> int | None:
 
 def is_auto_message(msg: dict[str, Any]) -> bool:
     metadata = msg.get("metadata") or {}
-    return bool(metadata.get("isAuto"))
+    if bool(metadata.get("isAuto")):
+        return True
+    if msg.get("type") == "NOTIFICATION":
+        return True
+    return False
