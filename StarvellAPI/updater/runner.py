@@ -144,6 +144,31 @@ class Runner:
 
             if is_auto_message(last_msg):
                 self._last_notified[chat_id] = msg_id
+                metadata = last_msg.get("metadata") or {}
+                notif_type = metadata.get("notificationType", "")
+                if notif_type == "REVIEW_CREATED":
+                    order_id = str(metadata.get("orderId") or "")
+                    if order_id and order_id not in self._seen_reviews:
+                        self._seen_reviews.add(order_id)
+                        username, interlocutor_id = extract_interlocutor(chat, my_id or 0)
+                        try:
+                            details = self.account.fetch_order_details(order_id)
+                            review = details.get("review") or {}
+                            rating = int(review.get("rating") or 5)
+                            text = str(review.get("content") or "")
+                            chat_id_order = (details.get("chat") or {}).get("id", "")
+                        except Exception as e:
+                            logger.error(f"$ERRORОшибка получения отзыва #{order_id}: {e}")
+                            rating, text, chat_id_order = 5, "", ""
+                        event = ReviewEvent(
+                            order_id=order_id,
+                            username=username,
+                            rating=rating,
+                            text=text,
+                            raw={**last_msg, "chatId": chat_id_order or chat_id},
+                        )
+                        logger.info(f"$CLIENTОтзыв от {username} ({rating}★): {text[:100]}")
+                        self._dispatch("review", event)
                 continue
 
             author_id = message_author_id(last_msg)
@@ -187,9 +212,6 @@ class Runner:
 
         if not orders:
             return
-        
-        if orders:
-            logger.info(f"$DEBUGПример заказа: {orders[0]}")
 
         confirmed_statuses = {"completed", "confirmed", "done", "finished"}
 
