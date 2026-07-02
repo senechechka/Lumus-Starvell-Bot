@@ -363,6 +363,13 @@ class TGBot:
                 "interlocutor_id": interlocutor_id,
             }
             self.bot.send_message(chat_id, "✏️ Введите сообщение для отправки в чат:")
+        elif data.startswith("refund:"):
+            order_id = data.split(":", 1)[1]
+            ok = self.lsb.account.refund_order(order_id)
+            if ok:
+                self.bot.answer_callback_query(call.id, "✅ Возврат выполнен", show_alert=True)
+            else:
+                self.bot.answer_callback_query(call.id, "❌ Ошибка возврата", show_alert=True)
         self.bot.answer_callback_query(call.id)
 
     def send_main_menu(self, chat_id: int, message_id: int | None = None) -> None:
