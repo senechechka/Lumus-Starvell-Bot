@@ -209,7 +209,6 @@ class Account:
         return result
 
     def count_lots(self) -> tuple[int, int]:
-        """Возвращает (число лотов, число категорий для автоподнятия)."""
         categories = self._fetch_profile_offers()
         lots = 0
         cat_ids: set[int] = set()
@@ -223,6 +222,21 @@ class Account:
             if isinstance(offers, list):
                 lots += sum(1 for o in offers if isinstance(o, dict))
         return lots, len(cat_ids)
+    
+    def refund_order(self, order_id: str) -> bool:
+        headers = self._headers("https://starvell.com/orders", api=True)
+        resp = self._session.post(
+            "https://starvell.com/api/orders/refund",
+            headers=headers,
+            json={"orderId": order_id},
+            timeout=20,
+        )
+        ok = 200 <= resp.status_code < 300
+        if ok:
+            logger.info(f"$SUCCESSВозврат заказа {order_id} выполнен")
+        else:
+            logger.error(f"$ERRORВозврат заказа {order_id} HTTP {resp.status_code}: {resp.text[:200]}")
+        return ok
 
     def _fetch_profile_offers(self) -> list[dict[str, Any]]:
         if not self.user_id and not self.username:
