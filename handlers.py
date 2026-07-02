@@ -185,7 +185,7 @@ def on_review(lsb, event: ReviewEvent) -> None:
     _notify(
         lsb,
         "review",
-        f"{stars} <b>Отзыв</b>\n{event.username}: {review_text}",
+        f"🎁 Вы получили {stars} за заказ #{event.order_id}!\n\n💬 Отзыв:\n{review_text}",
     )
     if lsb.main_cfg.get("Global", "auto_response", fallback="0") == "1" and lsb.account:
         text = lsb.main_cfg.get("Global", "review_text", fallback="")
