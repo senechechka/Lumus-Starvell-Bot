@@ -93,8 +93,6 @@ class Runner:
         iteration = 0
         while self.running:
             iteration += 1
-            if iteration % 30 == 0:
-                logger.info(f"$DEBUG Runner alive, iteration={iteration}, threads={threading.active_count()}")
             try:
                 self._run_with_deadline(self._poll_messages, baseline=first, name="poll_messages")
                 self._run_with_deadline(self._poll_orders, baseline=first, name="poll_orders")
