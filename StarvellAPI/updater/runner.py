@@ -187,6 +187,9 @@ class Runner:
 
         if not orders:
             return
+        
+        if orders:
+            logger.info(f"$DEBUGПример заказа: {orders[0]}")
 
         confirmed_statuses = {"completed", "confirmed", "done", "finished"}
 
