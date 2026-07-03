@@ -371,32 +371,8 @@ class TGBot:
             else:
                 self.bot.answer_callback_query(call.id, "❌ Ошибка возврата", show_alert=True)
 
-        elif data.startswith("refund:"):
-            order_id = data.split(":", 1)[1]
-            ok = self.lsb.account.refund_order(order_id)
-            if ok:
-                from plugins import auto_smm_lsb
-                auto_smm_lsb.waiting_for_link.pop(order_id, None)
-                try:
-                    from plugins.auto_smm_lsb import _load_orders_data, _save_orders_data, _load_orders_cache, _save_orders_cache
-                    orders_data = _load_orders_data()
-                    for o in orders_data:
-                        if str(o.get("order_id")) == order_id:
-                            o["status"] = "refunded"
-                            o["is_refunded"] = True
-                    _save_orders_data(orders_data)
-                    cache = _load_orders_cache()
-                    for o in cache:
-                        if str(o.get("order_id")) == order_id:
-                            o["completed_notification_sent"] = True
-                    _save_orders_cache(cache)
-                except Exception as e:
-                    logger.warning(f"Не удалось обновить статус AutoSMM: {e}")
-                self.bot.answer_callback_query(call.id, "✅ Возврат выполнен", show_alert=True)
-            else:
-                self.bot.answer_callback_query(call.id, "❌ Ошибка возврата", show_alert=True)
-
-        self.bot.answer_callback_query(call.id)
+        if not data.startswith("refund:"):
+            self.bot.answer_callback_query(call.id)
 
     def send_main_menu(self, chat_id: int, message_id: int | None = None) -> None:
         text = "⭐ <b>Lumus Starvell Bot</b>\n\nВыберите раздел:"

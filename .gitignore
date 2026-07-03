@@ -6,6 +6,7 @@ __pycache__/
 venv/
 
 configs/
+plugins/
 
 logs/
 *.log
@@ -14,6 +15,3 @@ storage/
 
 .idea/
 .vscode/
-
-adv_profile_stat.py
-lsb-SMM.py

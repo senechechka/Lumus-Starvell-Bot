@@ -266,6 +266,11 @@ class Runner:
                 logger.info(f"$CLIENTПодтверждение заказа #{order_id}")
                 self._dispatch("order_confirm", confirm_event)
 
+            if status in ("refund", "refunded", "cancelled", "canceled") and prev_status not in ("refund", "refunded", "cancelled", "canceled"):
+                refund_event = PaymentEvent(order_id=order_id, username=username, amount=price, raw=order)
+                logger.info(f"$CLIENTВозврат заказа #{order_id}")
+                self._dispatch("payment", refund_event)
+        
             if order.get("sellerCompletedAt") and order_id not in self._seen_reviews:
                 try:
                     details = self.account.fetch_order_details(order_id)
